@@ -26,11 +26,10 @@ NUMEROLOGY BASELINE:
 * Birthday Number: 6
 """
 
-# Configuration (Uses environment variables for security)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "your_gmail@gmail.com")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "your_16_char_app_password")
-RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL", "your_gmail@gmail.com")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 
 def reduce_number(n):
     while n > 9 and n not in (11, 22, 33):
