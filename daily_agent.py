@@ -44,7 +44,7 @@ def generate_and_send():
         reading = fetch_astrology_reading(prompt)
         print("Reading successfully generated.")
         
-        # 3. Email Sending Logic
+  # 3. Email Sending Logic
         sender_email = os.environ.get("SENDER_EMAIL")
         email_password = os.environ.get("EMAIL_APP_PASSWORD")
         recipient_email = os.environ.get("RECIPIENT_EMAIL")
