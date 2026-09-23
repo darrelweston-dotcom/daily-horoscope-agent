@@ -15,7 +15,7 @@ client = genai.Client()
 )
 def fetch_astrology_reading(prompt):
     # Using the Chat API instead of generate_content resolves the AFC warning from your logs
-    chat = client.chats.create(model="gemini-2.5-flash")
+    chat = client.chats.create(model="gemini-3.6-flash")
     response = chat.send_message(prompt)
     return response.text
 
