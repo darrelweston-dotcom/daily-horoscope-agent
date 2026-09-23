@@ -1,3 +1,5 @@
+import smtplib
+from email.message import EmailMessage
 import os
 import sys
 from google import genai
