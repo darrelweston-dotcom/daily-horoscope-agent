@@ -1,7 +1,29 @@
-- name: Run Script
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        USER_NAME: ${{ secrets.USER_NAME }}
-        ZODIAC_INFO: ${{ secrets.ZODIAC_INFO }}
-        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-      run: python daily_agent.py
+name: Daily Astrological Agent
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # Runs daily automatically
+  workflow_dispatch: # Allows you to run it manually
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        
+      - name: Run Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          ZODIAC_INFO: ${{ secrets.ZODIAC_INFO }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: python daily_agent.py
