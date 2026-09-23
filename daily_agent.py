@@ -1,29 +1,27 @@
-import smtplib
-from email.message import EmailMessage
 import os
 import sys
+import smtplib
+from email.message import EmailMessage
 from google import genai
 from google.genai import errors as genai_errors
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
-# The client automatically picks up the GEMINI_API_KEY environment variable.
+# Initialize Gemini client (automatically uses GEMINI_API_KEY from environment)
 client = genai.Client()
 
-# Retry logic: Waits 4s, 8s, 16s, etc., up to 5 times if Google's servers are overloaded (503)
+# Retry logic: Waits 4s, 8s, 16s, etc., up to 5 times for 503 Server Errors
 @retry(
     wait=wait_exponential(multiplier=2, min=4, max=60),
     stop=stop_after_attempt(5),
     retry=retry_if_exception_type(genai_errors.ServerError)
 )
 def fetch_astrology_reading(prompt):
-    # Using the Chat API instead of generate_content resolves the AFC warning from your logs
     chat = client.chats.create(model="gemini-3.6-flash")
     response = chat.send_message(prompt)
     return response.text
 
 def generate_and_send():
-    # 1. Pull personal information securely from GitHub Secrets/Environment Variables
-    # This keeps your info private and allows public users to plug in their own data.
+    # 1. Retrieve Personal Information
     user_name = os.environ.get("USER_NAME", "Seeker")
     zodiac_info = os.environ.get("ZODIAC_INFO", "general astrological transits")
     
@@ -43,27 +41,35 @@ def generate_and_send():
     try:
         reading = fetch_astrology_reading(prompt)
         print("Reading successfully generated.")
-        
-  # 3. Email Sending Logic
-        sender_email = os.environ.get("SENDER_EMAIL")
-        email_password = os.environ.get("EMAIL_APP_PASSWORD")
-        recipient_email = os.environ.get("RECIPIENT_EMAIL")
+    except Exception as e:
+        print(f"Workflow failed to generate reading after maximum retries: {e}")
+        sys.exit(1)
 
-        if sender_email and email_password and recipient_email:
-            print("Preparing to send email...")
-            msg = EmailMessage()
-            msg.set_content(reading)
-            msg['Subject'] = f"Daily Astrological Transit Report for {user_name}"
-            msg['From'] = sender_email
-            msg['To'] = recipient_email
+    # 3. Email Sending Logic
+    sender_email = os.environ.get("SENDER_EMAIL")
+    email_password = os.environ.get("EMAIL_APP_PASSWORD")
+    recipient_email = os.environ.get("RECIPIENT_EMAIL")
 
-            try:
-                # Connects securely to Gmail's SMTP server
-                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-                    server.login(sender_email, email_password)
-                    server.send_message(msg)
-                print("Email successfully delivered!")
-            except Exception as e:
-                print(f"Failed to send email: {e}")
-        else:
-            print("Email credentials missing from secrets. Printed to console instead.")
+    if sender_email and email_password and recipient_email:
+        print("Preparing to send email...")
+        msg = EmailMessage()
+        msg.set_content(reading)
+        msg['Subject'] = f"Daily Astrological Transit Report for {user_name}"
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+
+        try:
+            # Connects securely to Gmail's SMTP server
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                server.login(sender_email, email_password)
+                server.send_message(msg)
+            print("Email successfully delivered!")
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+    else:
+        print("Email credentials missing from secrets. Printed to console instead:\n")
+        print("--- DAILY REPORT ---")
+        print(reading)
+
+if __name__ == "__main__":
+    generate_and_send()
