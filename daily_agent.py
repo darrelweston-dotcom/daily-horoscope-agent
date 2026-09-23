@@ -45,13 +45,25 @@ def generate_and_send():
         print("Reading successfully generated.")
         
         # 3. Email Sending Logic
-        # (Insert your SMTP or email API code here, making sure to use os.environ.get("RECIPIENT_EMAIL"))
-        print("\n--- DAILY REPORT ---")
-        print(reading)
+        sender_email = os.environ.get("SENDER_EMAIL")
+        email_password = os.environ.get("EMAIL_APP_PASSWORD")
+        recipient_email = os.environ.get("RECIPIENT_EMAIL")
 
-    except Exception as e:
-        print(f"Workflow failed after maximum retries: {e}")
-        sys.exit(1)
+        if sender_email and email_password and recipient_email:
+            print("Preparing to send email...")
+            msg = EmailMessage()
+            msg.set_content(reading)
+            msg['Subject'] = f"Daily Astrological Transit Report for {user_name}"
+            msg['From'] = sender_email
+            msg['To'] = recipient_email
 
-if __name__ == "__main__":
-    generate_and_send()
+            try:
+                # Connects securely to Gmail's SMTP server
+                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                    server.login(sender_email, email_password)
+                    server.send_message(msg)
+                print("Email successfully delivered!")
+            except Exception as e:
+                print(f"Failed to send email: {e}")
+        else:
+            print("Email credentials missing from secrets. Printed to console instead.")
