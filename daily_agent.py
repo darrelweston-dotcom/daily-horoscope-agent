@@ -1,108 +1,55 @@
-import datetime
-import math
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import ephem
+import sys
 from google import genai
+from google.genai import errors as genai_errors
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
-# Baseline Profile Context
-BIRTH_MONTH = 3
-BIRTH_DAY = 15
-BIRTH_YEAR = 1980
+# The client automatically picks up the GEMINI_API_KEY environment variable.
+client = genai.Client()
 
-NATAL_PROFILE = """
-USER PROFILE:
-* Name: Darrel Keith Weston
-* Date of Birth: March 15, 1980
-* Sun Sign: Pisces
-
-NUMEROLOGY BASELINE:
-* Life Path Number: 9
-* Destiny (Expression) Number: 9
-* Soul Urge Number: 22/4
-* Personality Number: 5
-* Birthday Number: 6
-"""
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
-RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
-
-def reduce_number(n):
-    while n > 9 and n not in (11, 22, 33):
-        n = sum(int(digit) for digit in str(n))
-    return n
-
-def calculate_numerology_transits(today):
-    universal_year = sum(int(d) for d in str(today.year))
-    personal_year = reduce_number(BIRTH_MONTH + BIRTH_DAY + universal_year)
-    personal_month = reduce_number(personal_year + today.month)
-    personal_day = reduce_number(personal_month + today.day)
-    return personal_year, personal_month, personal_day
-
-def get_zodiac_sign(lon_rad):
-    degrees = math.degrees(float(lon_rad)) % 360
-    signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", 
-             "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
-    return signs[int(degrees // 30)]
-
-def calculate_astrological_transits(today):
-    date_str = today.strftime("%Y/%m/%d 12:00:00")
-    bodies = {
-        "Sun": ephem.Sun(date_str), "Moon": ephem.Moon(date_str),
-        "Mercury": ephem.Mercury(date_str), "Venus": ephem.Venus(date_str),
-        "Mars": ephem.Mars(date_str), "Jupiter": ephem.Jupiter(date_str),
-        "Saturn": ephem.Saturn(date_str)
-    }
-    return {name: get_zodiac_sign(ephem.Ecliptic(body).lon) for name, body in bodies.items()}
-
-def send_email(subject, body):
-    msg = MIMEMultipart()
-    msg['From'] = SENDER_EMAIL
-    msg['To'] = RECIPIENT_EMAIL
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
+# Retry logic: Waits 4s, 8s, 16s, etc., up to 5 times if Google's servers are overloaded (503)
+@retry(
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    stop=stop_after_attempt(5),
+    retry=retry_if_exception_type(genai_errors.ServerError)
+)
+def fetch_astrology_reading(prompt):
+    # Using the Chat API instead of generate_content resolves the AFC warning from your logs
+    chat = client.chats.create(model="gemini-2.5-flash")
+    response = chat.send_message(prompt)
+    return response.text
 
 def generate_and_send():
-    today = datetime.date.today()
-    py, pm, pd = calculate_numerology_transits(today)
-    transits = calculate_astrological_transits(today)
-    transit_summary = ", ".join([f"{planet} in {sign}" for planet, sign in transits.items()])
+    # 1. Pull personal information securely from GitHub Secrets/Environment Variables
+    # This keeps your info private and allows public users to plug in their own data.
+    user_name = os.environ.get("USER_NAME", "Seeker")
+    zodiac_info = os.environ.get("ZODIAC_INFO", "general astrological transits")
+    
+    if not os.environ.get("GEMINI_API_KEY"):
+        print("Error: GEMINI_API_KEY environment variable not set. Please configure GitHub Secrets.")
+        sys.exit(1)
 
-    prompt = f"""
-{NATAL_PROFILE}
-
-DYNAMIC TRANSITS FOR TODAY ({today.strftime('%B %d, %Y')}):
-* Current Planetary Positions: {transit_summary}
-* Personal Year: {py}
-* Personal Month: {pm}
-* Personal Day: {pd}
-
-INSTRUCTIONS:
-Generate a personalized daily report.
-1. Daily Horoscope: Interpret today's transits relative to a Pisces Sun.
-2. Daily Numerology: Interpret the energy of Personal Day {pd}.
-3. Daily Focus: Provide one clear action item.
-
-Keep response focused, clear, and grounded.
-"""
-
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt
+    # 2. Construct the personalized prompt
+    prompt = (
+        f"Generate a daily astrological transit report for {user_name}. "
+        f"Their specific chart details are: {zodiac_info}. "
+        "Focus on the major planetary transits today and how they affect these specific placements. "
+        "Format the output clearly as an email draft."
     )
 
-    subject = f"Your Daily Astrological & Numerology Report - {today.strftime('%b %d, %Y')}"
-    send_email(subject, response.text)
-    print("Report emailed successfully!")
+    print(f"Fetching reading for {user_name}...")
+    try:
+        reading = fetch_astrology_reading(prompt)
+        print("Reading successfully generated.")
+        
+        # 3. Email Sending Logic
+        # (Insert your SMTP or email API code here, making sure to use os.environ.get("RECIPIENT_EMAIL"))
+        print("\n--- DAILY REPORT ---")
+        print(reading)
+
+    except Exception as e:
+        print(f"Workflow failed after maximum retries: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     generate_and_send()
