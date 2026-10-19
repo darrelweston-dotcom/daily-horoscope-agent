@@ -48,7 +48,7 @@ def generate_report():
         sys.exit(1)
         
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel("gemini-3.8-flash")
     
     today = datetime.now()
     today_str = today.strftime("%B %d, %Y")
